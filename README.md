@@ -31,7 +31,9 @@ ADMIN_USER_IDS=твой_числовой_telegram_id
 
 По умолчанию пример настроен на SSH: укажи `SERVER_HOST`, `SERVER_USER`, `SERVER_PORT` и путь к приватному ключу в `.env`. Бот использует `ssh -o BatchMode=yes`, поэтому пароль в `.env` не нужен. `SSH_STRICT_HOST_KEY_CHECKING=accept-new` принимает ключ только при первом подключении и продолжает блокировать изменившийся ключ; для production можно поставить `yes` и заранее заполнить `SSH_KNOWN_HOSTS`. Можно вместо IP задать `SSH_TARGET` — имя алиаса из `~/.ssh/config`.
 
-Если бот запускается прямо на inference-сервере, поставь `CONTROL_MODE=local`.
+Если бот запускается прямо на inference-сервере, поставь `CONTROL_MODE=local`. В этом режиме SSH не используется: команды выполняются через `LOCAL_SHELL` (по умолчанию `/bin/bash`) в окружении самого бота. Убедись, что пользователь бота имеет права на `systemctl`, `journalctl` и `nvidia-smi`; для `sudo` используй ограниченное правило `NOPASSWD` из шаблона.
+
+Важно для Docker: `CONTROL_MODE=local` выполняет команды внутри контейнера. Если systemd и GPU-сервисы работают на хосте, запускай бота на хосте напрямую или оставь `CONTROL_MODE=ssh` (например, SSH на хост), иначе `systemctl` внутри контейнера не будет управлять хостовыми сервисами.
 
 При запуске через `docker compose` примонтируй SSH-ключ и `known_hosts`: в `.env` укажи `SSH_KEY_HOST_PATH` и `SSH_KNOWN_HOSTS_HOST_PATH`. Готовый `compose.yaml` монтирует их внутрь контейнера как `/root/.ssh/id_ed25519` и `/root/.ssh/known_hosts`.
 

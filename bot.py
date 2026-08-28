@@ -36,6 +36,7 @@ def csv_ints(value: str) -> set[int]:
 TOKEN = env("TELEGRAM_BOT_TOKEN")
 ADMINS = csv_ints(env("ADMIN_USER_IDS"))
 CONTROL_MODE = env("CONTROL_MODE", "local").lower()
+LOCAL_SHELL = os.path.expanduser(env("LOCAL_SHELL", "/bin/bash"))
 SERVER_HOST = env("SERVER_HOST", "127.0.0.1")
 SERVER_PORT = env("SERVER_PORT", "22")
 SERVER_USER = env("SERVER_USER", "")
@@ -105,8 +106,12 @@ class ControlPlane:
                 os.makedirs(known_hosts_dir, exist_ok=True)
                 argv.extend(["-o", f"UserKnownHostsFile={SSH_KNOWN_HOSTS}"])
             argv.extend([destination, "--", command])
+        elif CONTROL_MODE == "local":
+            # In local mode commands run in the same OS environment as the bot.
+            # This is intended for a bot started directly on the inference host.
+            argv = [LOCAL_SHELL, "-lc", command]
         else:
-            argv = ["bash", "-lc", command]
+            return CmdResult(2, "", f"invalid CONTROL_MODE={CONTROL_MODE!r}; use 'local' or 'ssh'")
         try:
             process = await asyncio.create_subprocess_exec(
                 *argv,
@@ -253,13 +258,18 @@ async def dashboard() -> str:
     )
     def mark(value: str) -> str:
         return "🟢" if value == "active" else "⚪"
+    target = (
+        "этот хост"
+        if CONTROL_MODE == "local"
+        else (SERVER_USER + "@" + SERVER_HOST if SERVER_USER else (SSH_TARGET or SERVER_HOST))
+    )
     return (
         "<b>AI Inference Control</b>\n"
         "<i>локальная панель управления сервером</i>\n\n"
         f"{mark(comfy)} {html.escape(LABELS['comfyui'])}: <code>{html.escape(comfy)}</code>\n"
         f"{mark(vllm)} {html.escape(LABELS['vllm'])}: <code>{html.escape(vllm)}</code>\n\n"
         f"🌐 Доступ: <b>{'PUBLIC' if exposure == 'public' else 'LOCAL ONLY'}</b>\n"
-        f"🛰 Управление: <code>{html.escape(CONTROL_MODE)}</code> → <code>{html.escape(SERVER_USER + '@' + SERVER_HOST if SERVER_USER else (SSH_TARGET or SERVER_HOST))}</code>\n\n"
+        f"🛰 Управление: <code>{html.escape(CONTROL_MODE)}</code> → <code>{html.escape(target)}</code>\n\n"
         f"{html.escape(gpu)}\n\n"
         f"🕒 {datetime.now().astimezone().strftime('%d.%m.%Y %H:%M:%S')}"
     )
@@ -415,6 +425,8 @@ async def callbacks(callback: CallbackQuery) -> None:
 async def main() -> None:
     if not TOKEN or TOKEN.startswith("123456"):
         raise RuntimeError("Set TELEGRAM_BOT_TOKEN in .env")
+    if CONTROL_MODE not in {"local", "ssh"}:
+        raise RuntimeError("CONTROL_MODE must be either 'local' or 'ssh'")
     if not ADMINS:
         print("WARNING: ADMIN_USER_IDS is empty; only /id will be useful until it is configured")
     bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
