@@ -3,12 +3,13 @@ set -euo pipefail
 
 # Switch bind addresses for the two systemd units used by this project.
 # Install as /usr/local/sbin/ai-inference-exposure and run as root (or via a
-# narrowly scoped sudoers rule). Override paths/addresses through environment.
+# narrowly scoped sudoers rule). Override paths/addresses through environment
+# or optional arguments: {mode} {local_bind} {public_bind}.
 MODE="${1:-}"
 COMFY_UNIT="${AI_COMFY_UNIT:-/etc/systemd/system/comfyui.service}"
 VLLM_UNIT="${AI_VLLM_UNIT:-/etc/systemd/system/vllm.service}"
-LOCAL_BIND="${AI_LOCAL_BIND:-192.168.8.248}"
-PUBLIC_BIND="${AI_PUBLIC_BIND:-0.0.0.0}"
+LOCAL_BIND="${2:-${AI_LOCAL_BIND:-192.168.8.248}}"
+PUBLIC_BIND="${3:-${AI_PUBLIC_BIND:-0.0.0.0}}"
 
 if [[ "$MODE" == "status" ]]; then
   if grep -qE -- '--listen 0\.0\.0\.0|--host 0\.0\.0\.0' "$COMFY_UNIT" "$VLLM_UNIT"; then
