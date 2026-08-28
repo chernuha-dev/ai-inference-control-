@@ -40,6 +40,7 @@ SERVER_HOST = env("SERVER_HOST", "127.0.0.1")
 SERVER_PORT = env("SERVER_PORT", "22")
 SERVER_USER = env("SERVER_USER", "")
 SSH_KEY_PATH = os.path.expanduser(env("SSH_KEY_PATH", ""))
+SSH_BIN = env("SSH_BIN", "/usr/bin/ssh")
 SSH_STRICT_HOST_KEY_CHECKING = env("SSH_STRICT_HOST_KEY_CHECKING", "yes")
 # Backwards-compatible alias for older configs.
 SSH_TARGET = env("SSH_TARGET", "")
@@ -90,7 +91,7 @@ class ControlPlane:
     async def run(self, command: str, timeout: float = 45) -> CmdResult:
         if CONTROL_MODE == "ssh":
             destination = SSH_TARGET or (f"{SERVER_USER}@{SERVER_HOST}" if SERVER_USER else SERVER_HOST)
-            argv = ["ssh", "-o", "BatchMode=yes"]
+            argv = [SSH_BIN, "-o", "BatchMode=yes"]
             if SERVER_PORT:
                 argv.extend(["-p", SERVER_PORT])
             if SSH_KEY_PATH:
