@@ -39,6 +39,8 @@ ADMIN_USER_IDS=твой_числовой_telegram_id
 
 Для действий systemd бот использует `sudo -n`, то есть пароль в `.env` не хранится. Настрой для пользователя бота ограниченное правило `NOPASSWD` только на нужные сервисы либо запускай бота с подходящими правами.
 
+Готовый шаблон правила: `deploy/ai-inference-control.sudoers.example`. После замены `YOUR_SERVER_USER` проверь его через `visudo -cf` и положи в `/etc/sudoers.d/ai-inference-control`.
+
 ## Local / Public
 
 Кнопки `🏠 Local only` и `🌍 Public` вызывают `EXPOSURE_LOCAL_CMD` или `EXPOSURE_PUBLIC_CMD` на сервере. Это намеренно сделано через явные команды из `.env`: у разных серверов разные firewall, интерфейсы и systemd-аргументы. Пример для собственного проверенного скрипта:

@@ -1,0 +1,12 @@
+# Replace YOUR_SERVER_USER with the account used by SERVER_USER in .env.
+# Install as /etc/sudoers.d/ai-inference-control and validate with visudo.
+Cmnd_Alias AI_INFERENCE_CONTROL = \
+    /usr/local/sbin/ai-inference-exposure *, \
+    /usr/bin/systemctl start comfyui.service, \
+    /usr/bin/systemctl stop comfyui.service, \
+    /usr/bin/systemctl start vllm.service, \
+    /usr/bin/systemctl stop vllm.service, \
+    /usr/bin/systemctl is-active comfyui.service, \
+    /usr/bin/systemctl is-active vllm.service
+
+YOUR_SERVER_USER ALL=(root) NOPASSWD: AI_INFERENCE_CONTROL
