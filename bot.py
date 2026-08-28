@@ -206,7 +206,10 @@ class ControlPlane:
         )
         if result.code != 0 or not result.text:
             return "GPU: nvidia-smi недоступен"
-        name, temp, util, used, total = [x.strip() for x in result.text.splitlines()[0].split(",")]
+        fields = [x.strip() for x in result.text.splitlines()[0].split(",")]
+        if len(fields) != 5:
+            return f"GPU: не удалось разобрать ответ nvidia-smi\n{result.text[-500:]}"
+        name, temp, util, used, total = fields
         return f"GPU: {name}\n🌡 {temp}°C  ·  ⚡ {util}%\n🧠 VRAM: {used}/{total} MiB"
 
 
@@ -226,7 +229,7 @@ def keyboard() -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="🧠 Qwen / vLLM", callback_data="switch:vllm"),
             ],
             [
-                InlineKeyboardButton(text="📊 Статус", callback_data="status"),
+                InlineKeyboardButton(text="🔄 Обновить", callback_data="status"),
                 InlineKeyboardButton(text="📜 Логи", callback_data="logs:menu"),
             ],
             [
@@ -235,6 +238,12 @@ def keyboard() -> InlineKeyboardMarkup:
             ],
             [InlineKeyboardButton(text="⏹ Остановить всё", callback_data="stop:ask")],
         ]
+    )
+
+
+def log_view_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="◀️ Назад к статусу", callback_data="back")]]
     )
 
 
@@ -341,8 +350,9 @@ async def callbacks(callback: CallbackQuery) -> None:
             await callback.answer("Неизвестный сервис", show_alert=True)
             return
         output = await control.logs(backend)  # type: ignore[arg-type]
-        await callback.message.answer(
-            f"<b>{html.escape(LABELS[backend])} · последние логи</b>\n<pre>{html.escape(output)}</pre>"
+        await callback.message.edit_text(
+            f"<b>{html.escape(LABELS[backend])} · последние логи</b>\n<pre>{html.escape(output)}</pre>",
+            reply_markup=log_view_keyboard(),
         )
         await callback.answer()
     elif data.startswith("switch:"):
