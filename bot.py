@@ -11,6 +11,7 @@ from typing import Literal, Optional
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from aiogram.filters import Command, CommandStart
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 from dotenv import load_dotenv
@@ -56,6 +57,8 @@ EXPOSURE_STATUS_CMD = env("EXPOSURE_STATUS_CMD")
 LOCAL_BIND_HOST = env("LOCAL_BIND_HOST", "127.0.0.1")
 PUBLIC_BIND_HOST = env("PUBLIC_BIND_HOST", "0.0.0.0")
 NVIDIA_SMI_BIN = env("NVIDIA_SMI_BIN", "/usr/bin/nvidia-smi")
+_refresh_seconds = int(env("STATUS_REFRESH_SECONDS", "10") or "10")
+STATUS_REFRESH_SECONDS = 0 if _refresh_seconds <= 0 else max(5, min(_refresh_seconds, 60))
 
 SERVICES: dict[Backend, str] = {
     "comfyui": env("COMFYUI_SERVICE", "comfyui.service"),
@@ -215,10 +218,66 @@ class ControlPlane:
 
 control = ControlPlane()
 router = Router()
+_live_tasks: dict[tuple[int, int], asyncio.Task] = {}
 
 
 def allowed(user_id: Optional[int]) -> bool:
     return user_id is not None and user_id in ADMINS
+
+
+def _message_key(message: Message) -> tuple[int, int]:
+    return message.chat.id, message.message_id
+
+
+def stop_live(message: Message) -> None:
+    """Pause auto-refresh for a dashboard message while showing another view."""
+    task = _live_tasks.pop(_message_key(message), None)
+    if task and not task.done():
+        task.cancel()
+
+
+def stop_live_for_chat(chat_id: int) -> None:
+    for key, task in list(_live_tasks.items()):
+        if key[0] == chat_id:
+            _live_tasks.pop(key, None)
+            if not task.done():
+                task.cancel()
+
+
+def start_live(message: Message) -> None:
+    if STATUS_REFRESH_SECONDS <= 0:
+        return
+    key = _message_key(message)
+    existing = _live_tasks.get(key)
+    if existing and not existing.done():
+        return
+    _live_tasks[key] = asyncio.create_task(_live_refresh(message.bot, *key))
+
+
+async def _live_refresh(bot: Bot, chat_id: int, message_id: int) -> None:
+    key = (chat_id, message_id)
+    try:
+        while True:
+            await asyncio.sleep(STATUS_REFRESH_SECONDS)
+            try:
+                await bot.edit_message_text(
+                    chat_id=chat_id,
+                    message_id=message_id,
+                    text=await dashboard(),
+                    reply_markup=keyboard(),
+                )
+            except TelegramBadRequest as exc:
+                # Telegram returns this when the values did not change between ticks.
+                if "message is not modified" in str(exc).lower():
+                    continue
+                break
+            except TelegramForbiddenError:
+                break
+    except asyncio.CancelledError:
+        raise
+    finally:
+        if _live_tasks.get(key) is asyncio.current_task():
+            _live_tasks.pop(key, None)
 
 
 def keyboard() -> InlineKeyboardMarkup:
@@ -293,7 +352,9 @@ async def start(message: Message) -> None:
     if not allowed(message.from_user.id if message.from_user else None):
         await deny(message)
         return
-    await message.answer(await dashboard(), reply_markup=keyboard())
+    stop_live_for_chat(message.chat.id)
+    dashboard_message = await message.answer(await dashboard(), reply_markup=keyboard())
+    start_live(dashboard_message)
 
 
 @router.message(Command("id"))
@@ -308,7 +369,9 @@ async def status_command(message: Message) -> None:
     if not allowed(message.from_user.id if message.from_user else None):
         await deny(message)
         return
-    await message.answer(await dashboard(), reply_markup=keyboard())
+    stop_live_for_chat(message.chat.id)
+    dashboard_message = await message.answer(await dashboard(), reply_markup=keyboard())
+    start_live(dashboard_message)
 
 
 @router.message(Command("logs"))
@@ -316,6 +379,7 @@ async def logs_command(message: Message) -> None:
     if not allowed(message.from_user.id if message.from_user else None):
         await deny(message)
         return
+    stop_live_for_chat(message.chat.id)
     await message.answer("Выбери сервис:", reply_markup=logs_keyboard())
 
 
@@ -335,11 +399,14 @@ async def callbacks(callback: CallbackQuery) -> None:
         await callback.answer("Доступ закрыт", show_alert=True)
         return
     data = callback.data or ""
+    stop_live(callback.message)
     if data == "status":
         await callback.message.edit_text(await dashboard(), reply_markup=keyboard())
+        start_live(callback.message)
         await callback.answer("Обновлено")
     elif data == "back":
         await callback.message.edit_text(await dashboard(), reply_markup=keyboard())
+        start_live(callback.message)
         await callback.answer()
     elif data == "logs:menu":
         await callback.message.edit_text("Выбери сервис:", reply_markup=logs_keyboard())
@@ -399,6 +466,7 @@ async def callbacks(callback: CallbackQuery) -> None:
             f"<b>{prefix}</b>\n<pre>{html.escape(detail)}</pre>\n\n{await dashboard()}",
             reply_markup=keyboard(),
         )
+        start_live(callback.message)
         await callback.answer()
     elif data.startswith("confirm:"):
         backend = data.split(":", 1)[1]
@@ -409,6 +477,7 @@ async def callbacks(callback: CallbackQuery) -> None:
             f"<b>{prefix}</b>\n<pre>{html.escape(detail)}</pre>\n\n{await dashboard()}",
             reply_markup=keyboard(),
         )
+        start_live(callback.message)
         await callback.answer()
     elif data == "stop:ask":
         confirm = InlineKeyboardMarkup(
@@ -426,9 +495,11 @@ async def callbacks(callback: CallbackQuery) -> None:
             f"✅ Остановлено\n<pre>{html.escape(detail)}</pre>\n\n{await dashboard()}",
             reply_markup=keyboard(),
         )
+        start_live(callback.message)
         await callback.answer()
     elif data == "cancel":
         await callback.message.edit_text(await dashboard(), reply_markup=keyboard())
+        start_live(callback.message)
         await callback.answer("Отменено")
 
 
