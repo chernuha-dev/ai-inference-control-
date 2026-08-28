@@ -1,0 +1,13 @@
+[project]
+name = "ai-inference-control"
+version = "0.1.0"
+description = "Telegram control panel for ComfyUI/Krea and vLLM inference services"
+requires-python = ">=3.9"
+dependencies = [
+  "aiogram>=3.20,<4",
+  "python-dotenv>=1.0,<2",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
