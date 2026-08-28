@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Switch bind addresses for the two systemd units used by this project.
+# Install as /usr/local/sbin/ai-inference-exposure and run as root (or via a
+# narrowly scoped sudoers rule). Override paths/addresses through environment.
+MODE="${1:-}"
+COMFY_UNIT="${AI_COMFY_UNIT:-/etc/systemd/system/comfyui.service}"
+VLLM_UNIT="${AI_VLLM_UNIT:-/etc/systemd/system/vllm.service}"
+LOCAL_BIND="${AI_LOCAL_BIND:-192.168.8.248}"
+PUBLIC_BIND="${AI_PUBLIC_BIND:-0.0.0.0}"
+
+if [[ "$MODE" == "status" ]]; then
+  if grep -qE -- '--listen 0\.0\.0\.0|--host 0\.0\.0\.0' "$COMFY_UNIT" "$VLLM_UNIT"; then
+    echo public
+  else
+    echo local
+  fi
+  printf 'comfyui: '; grep -oE -- '--listen [^ ]+' "$COMFY_UNIT" | head -1 || true
+  printf 'vllm: '; grep -oE -- '--host [^ ]+' "$VLLM_UNIT" | head -1 || true
+  exit 0
+fi
+
+case "$MODE" in
+  local) bind="$LOCAL_BIND" ;;
+  public) bind="$PUBLIC_BIND" ;;
+  *) echo "usage: $0 {local|public|status}" >&2; exit 2 ;;
+esac
+
+[[ -f "$COMFY_UNIT" && -f "$VLLM_UNIT" ]] || {
+  echo "service unit not found: $COMFY_UNIT / $VLLM_UNIT" >&2
+  exit 1
+}
+
+# Keep recoverable backups beside each unit before changing bind arguments.
+cp -n "$COMFY_UNIT" "$COMFY_UNIT.ai-inference-control.bak" 2>/dev/null || true
+cp -n "$VLLM_UNIT" "$VLLM_UNIT.ai-inference-control.bak" 2>/dev/null || true
+sed -E -i "s|( --listen)[[:space:]]+[^[:space:]]+|\\1 $bind|" "$COMFY_UNIT"
+sed -E -i "s|( --host)[[:space:]]+[^[:space:]]+|\\1 $bind|" "$VLLM_UNIT"
+systemctl daemon-reload
+systemctl try-restart "$(basename "$COMFY_UNIT")" "$(basename "$VLLM_UNIT")" || true
+echo "exposure mode: $MODE ($bind)"

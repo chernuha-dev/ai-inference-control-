@@ -50,6 +50,8 @@ EXPOSURE_MODE = env("EXPOSURE_MODE", "local").lower()
 EXPOSURE_LOCAL_CMD = env("EXPOSURE_LOCAL_CMD")
 EXPOSURE_PUBLIC_CMD = env("EXPOSURE_PUBLIC_CMD")
 EXPOSURE_STATUS_CMD = env("EXPOSURE_STATUS_CMD")
+LOCAL_BIND_HOST = env("LOCAL_BIND_HOST", "127.0.0.1")
+PUBLIC_BIND_HOST = env("PUBLIC_BIND_HOST", "0.0.0.0")
 
 SERVICES: dict[Backend, str] = {
     "comfyui": env("COMFYUI_SERVICE", "comfyui.service"),
@@ -174,6 +176,11 @@ class ControlPlane:
                 f"EXPOSURE_{mode.upper()}_CMD=...\n"
                 "Команда должна переключать bind/firewall и при необходимости перезапускать сервисы."
             )
+        command = (
+            command.replace("{mode}", mode)
+            .replace("{local_bind}", shlex.quote(LOCAL_BIND_HOST))
+            .replace("{public_bind}", shlex.quote(PUBLIC_BIND_HOST))
+        )
         result = await self.run(command, timeout=60)
         if result.code != 0:
             return False, result.text[-1500:] or "команда завершилась с ошибкой"

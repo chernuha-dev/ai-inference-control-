@@ -44,9 +44,17 @@ ADMIN_USER_IDS=твой_числовой_telegram_id
 Кнопки `🏠 Local only` и `🌍 Public` вызывают `EXPOSURE_LOCAL_CMD` или `EXPOSURE_PUBLIC_CMD` на сервере. Это намеренно сделано через явные команды из `.env`: у разных серверов разные firewall, интерфейсы и systemd-аргументы. Пример для собственного проверенного скрипта:
 
 ```dotenv
-EXPOSURE_LOCAL_CMD=sudo -n /usr/local/sbin/ai-inference-exposure local
-EXPOSURE_PUBLIC_CMD=sudo -n /usr/local/sbin/ai-inference-exposure public
-EXPOSURE_STATUS_CMD=/usr/local/sbin/ai-inference-exposure status
+LOCAL_BIND_HOST=192.168.1.100
+PUBLIC_BIND_HOST=0.0.0.0
+EXPOSURE_LOCAL_CMD=sudo -n env AI_LOCAL_BIND={local_bind} AI_PUBLIC_BIND={public_bind} /usr/local/sbin/ai-inference-exposure local
+EXPOSURE_PUBLIC_CMD=sudo -n env AI_LOCAL_BIND={local_bind} AI_PUBLIC_BIND={public_bind} /usr/local/sbin/ai-inference-exposure public
+EXPOSURE_STATUS_CMD=sudo -n /usr/local/sbin/ai-inference-exposure status
+```
+
+Шаблоны `{local_bind}` и `{public_bind}` подставляются ботом из `.env`. Скрипт из `scripts/ai-inference-exposure` нужно один раз установить на сервер:
+
+```bash
+sudo install -m 0750 scripts/ai-inference-exposure /usr/local/sbin/ai-inference-exposure
 ```
 
 Не подставляй в эти переменные команды из Telegram и не открывай порты без firewall-правил. Для `PUBLIC` ограничь доступ хотя бы VPN, reverse-proxy или allowlist-ом.
