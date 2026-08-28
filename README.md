@@ -33,6 +33,8 @@ ADMIN_USER_IDS=твой_числовой_telegram_id
 
 Если бот запускается прямо на inference-сервере, поставь `CONTROL_MODE=local`.
 
+При запуске через `docker compose` примонтируй SSH-ключ и `known_hosts`: в `.env` укажи `SSH_KEY_HOST_PATH` и `SSH_KNOWN_HOSTS_HOST_PATH`. Готовый `compose.yaml` монтирует их внутрь контейнера как `/root/.ssh/id_ed25519` и `/root/.ssh/known_hosts`.
+
 ## Управление сервисами
 
 Бот ожидает `comfyui.service` и `vllm.service`; при необходимости измени имена в `.env`.

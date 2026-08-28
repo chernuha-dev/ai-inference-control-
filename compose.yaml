@@ -5,3 +5,7 @@ services:
     restart: always
     env_file:
       - .env
+    volumes:
+      # The container needs the host's SSH identity and known_hosts to reach the inference server.
+      - ${SSH_KEY_HOST_PATH:-${HOME}/.ssh/id_ed25519}:/root/.ssh/id_ed25519:ro
+      - ${SSH_KNOWN_HOSTS_HOST_PATH:-${HOME}/.ssh/known_hosts}:/root/.ssh/known_hosts:ro
