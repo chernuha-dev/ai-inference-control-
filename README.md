@@ -29,7 +29,7 @@ ADMIN_USER_IDS=твой_числовой_telegram_id
 
 ## Подключение к серверу
 
-По умолчанию пример настроен на SSH: укажи `SERVER_HOST`, `SERVER_USER`, `SERVER_PORT` и путь к приватному ключу в `.env`. Бот использует `ssh -o BatchMode=yes`, поэтому пароль в `.env` не нужен. Можно вместо этого задать `SSH_TARGET` — имя алиаса из `~/.ssh/config`.
+По умолчанию пример настроен на SSH: укажи `SERVER_HOST`, `SERVER_USER`, `SERVER_PORT` и путь к приватному ключу в `.env`. Бот использует `ssh -o BatchMode=yes`, поэтому пароль в `.env` не нужен. `SSH_STRICT_HOST_KEY_CHECKING=accept-new` принимает ключ только при первом подключении и продолжает блокировать изменившийся ключ; для production можно поставить `yes` и заранее заполнить `SSH_KNOWN_HOSTS`. Можно вместо IP задать `SSH_TARGET` — имя алиаса из `~/.ssh/config`.
 
 Если бот запускается прямо на inference-сервере, поставь `CONTROL_MODE=local`.
 

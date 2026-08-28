@@ -41,6 +41,7 @@ SERVER_PORT = env("SERVER_PORT", "22")
 SERVER_USER = env("SERVER_USER", "")
 SSH_KEY_PATH = os.path.expanduser(env("SSH_KEY_PATH", ""))
 SSH_BIN = env("SSH_BIN", "/usr/bin/ssh")
+SSH_KNOWN_HOSTS = os.path.expanduser(env("SSH_KNOWN_HOSTS", "~/.ssh/known_hosts"))
 SSH_STRICT_HOST_KEY_CHECKING = env("SSH_STRICT_HOST_KEY_CHECKING", "yes")
 # Backwards-compatible alias for older configs.
 SSH_TARGET = env("SSH_TARGET", "")
@@ -53,6 +54,7 @@ EXPOSURE_PUBLIC_CMD = env("EXPOSURE_PUBLIC_CMD")
 EXPOSURE_STATUS_CMD = env("EXPOSURE_STATUS_CMD")
 LOCAL_BIND_HOST = env("LOCAL_BIND_HOST", "127.0.0.1")
 PUBLIC_BIND_HOST = env("PUBLIC_BIND_HOST", "0.0.0.0")
+NVIDIA_SMI_BIN = env("NVIDIA_SMI_BIN", "/usr/bin/nvidia-smi")
 
 SERVICES: dict[Backend, str] = {
     "comfyui": env("COMFYUI_SERVICE", "comfyui.service"),
@@ -98,6 +100,10 @@ class ControlPlane:
                 argv.extend(["-i", SSH_KEY_PATH])
             if SSH_STRICT_HOST_KEY_CHECKING:
                 argv.extend(["-o", f"StrictHostKeyChecking={SSH_STRICT_HOST_KEY_CHECKING}"])
+            if SSH_KNOWN_HOSTS:
+                known_hosts_dir = os.path.dirname(SSH_KNOWN_HOSTS) or "."
+                os.makedirs(known_hosts_dir, exist_ok=True)
+                argv.extend(["-o", f"UserKnownHostsFile={SSH_KNOWN_HOSTS}"])
             argv.extend([destination, "--", command])
         else:
             argv = ["bash", "-lc", command]
@@ -189,7 +195,7 @@ class ControlPlane:
 
     async def gpu(self) -> str:
         result = await self.run(
-            "nvidia-smi --query-gpu=name,temperature.gpu,utilization.gpu,memory.used,memory.total "
+            f"{shlex.quote(NVIDIA_SMI_BIN)} --query-gpu=name,temperature.gpu,utilization.gpu,memory.used,memory.total "
             "--format=csv,noheader,nounits",
             timeout=15,
         )
